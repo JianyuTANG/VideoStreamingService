@@ -1,5 +1,5 @@
 from tkinter import *
-import tkinter.messagebox
+from tkinter import messagebox as tkMessageBox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
 
@@ -8,7 +8,8 @@ from RtpPacket import RtpPacket
 CACHE_FILE_NAME = "cache-"
 CACHE_FILE_EXT = ".jpg"
 
-class Client:
+
+class Client(Frame):
 	INIT = 0
 	READY = 1
 	PLAYING = 2
@@ -21,7 +22,8 @@ class Client:
 	DESCRIBE = 4
 	
 	# Initiation..
-	def __init__(self, master, serveraddr, serverport, rtpport, filename):
+	def __init__(self, master, serveraddr, serverport, rtpport, filename, **kw):
+		super().__init__(master, **kw)
 		self.master = master
 		self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.createWidgets()
@@ -84,7 +86,9 @@ class Client:
 	
 	def playMovie(self):
 		"""Play button handler."""
+		print('play1')
 		if self.state == self.READY:
+			print('play')
 			# Create a new thread to listen for RTP packets
 			threading.Thread(target=self.listenRtp).start()
 			self.playEvent = threading.Event()
@@ -93,6 +97,7 @@ class Client:
 	
 	def listenRtp(self):		
 		"""Listen for RTP packets."""
+		print('start listen')
 		while True:
 			try:
 				data = self.rtpSocket.recv(20480)
@@ -130,7 +135,7 @@ class Client:
 	def updateMovie(self, imageFile):
 		"""Update the image file as video frame in the GUI."""
 		photo = ImageTk.PhotoImage(Image.open(imageFile))
-		self.label.configure(image = photo, height=288) 
+		self.label.configure(image=photo, height=288)
 		self.label.image = photo
 		
 	def connectToServer(self):
@@ -253,4 +258,7 @@ class Client:
 			self.playMovie()
 
 
-c = Client(None)
+root = Tk()
+c = Client(root, '127.0.0.1', 6666, 5555, '1')
+print(666)
+c.mainloop()
