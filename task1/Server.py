@@ -91,11 +91,10 @@ class Server:
         print('start transmitting')
         while True:
             self.rtpFlag.wait(0.05)
-
-            # Stop sending if request is PAUSE or TEARDOWN
             if self.rtpFlag.isSet():
                 break
 
+            # read images
             try:
                 data = open(self.imgList[self.frameSeq], 'rb')
                 data = data.read()
