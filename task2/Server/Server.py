@@ -1,22 +1,27 @@
 import socket
 import threading
 from RtpPacket import RtpPacket
+from VideoLoader import VideoLoader
 import random
 import os
 import glob
 
 
 class Server:
-    def __init__(self, rtspSocket):
-        self.INIT = 0
-        self.READY = 1
-        self.PLAYING = 2
-        self.state = self.INIT
+    SETUP = 'SETUP'
+    PLAY = 'PLAY'
+    PAUSE = 'PAUSE'
+    TEARDOWN = 'TEARDOWN'
+    REPOSITION = 'REPOSITION'
+    DESCRIPTION = 'DESCRIPTION'
 
-        self.SETUP = 'SETUP'
-        self.PLAY = 'PLAY'
-        self.PAUSE = 'PAUSE'
-        self.TEARDOWN = 'TEARDOWN'
+    INIT = 0
+    READY = 1
+    PLAYING = 2
+
+    def __init__(self, rtspSocket):
+        self.state = Server.INIT
+
         self.rtspSocket = rtspSocket[0]
         self.rtpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.clientIp = rtspSocket[1][0]
@@ -47,13 +52,16 @@ class Server:
         seqNum = lines[1][1]
         print(seqNum)
 
-        if rtspType == self.SETUP and self.state == self.INIT:
+        if rtspType == Server.SETUP and self.state == Server.INIT:
             # deal with the video
-            folderName = lines[0][1]
-            if not os.path.isdir(folderName):
+            videoName = lines[0][1]
+            try:
+                self.videoLoader = VideoLoader(videoName)
+            except IOError:
+                reply = 'RTSP/1.0 404 FAIL\nCSeq: ' + seqNum + '\nSession: ' + self.session
+                self.rtspSocket.sendall(reply.encode())
                 return
-            self.imgList = glob.glob(os.path.join(folderName, '*.jpg'))
-            self.imgList.sort()
+
             self.frameSeq = 0
             self.state = self.READY
             session = random.randint(100000, 999999)
@@ -64,25 +72,45 @@ class Server:
             print(reply)
             self.rtspSocket.sendall(reply.encode())
 
-        elif rtspType == self.PLAY and self.state == self.READY:
+        elif rtspType == Server.DESCRIPTION and self.state == Server.READY:
+            len = self.videoLoader.getLen()
+            fps = self.videoLoader.getFps()
+            reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
+            reply += '\nLen: ' + str(len) + '\nFps: ' + str(fps)
+            self.rtspSocket.sendall(reply.encode())
+
+        elif rtspType == Server.PLAY and self.state == Server.READY:
             self.state = self.PLAYING
             self.rtpFlag.clear()
             reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
             self.rtspSocket.sendall(reply.encode())
             threading.Thread(target=self.sendRtpPacket).start()
 
-        elif rtspType == self.PAUSE and self.state == self.PLAYING:
+        elif rtspType == Server.PAUSE and self.state == Server.PLAYING:
             self.state = self.READY
             self.rtpFlag.set()
             reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
             self.rtspSocket.sendall(reply.encode())
 
-        elif rtspType == self.TEARDOWN:
+        elif rtspType == Server.REPOSITION:
+            if self.state == Server.READY or self.state == Server.PLAYING:
+                sec = int(lines[0][1])
+                if self.videoLoader.reposition(sec):
+                    frameSeq = self.videoLoader.getSeq()
+                    reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
+                    reply += '\nFrameseq: ' + str(frameSeq)
+                else:
+                    reply = 'RTSP/1.0 404 FAIL\nCSeq: ' + seqNum + '\nSession: ' + self.session
+                self.rtspSocket.sendall(reply.encode())
+
+        elif rtspType == Server.TEARDOWN:
             self.rtpFlag.set()
             reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
             self.rtspSocket.sendall(reply.encode())
-            self.rtpSocket.close()
-            return
+
+            self.videoLoader = None
+            self.state = Server.INIT
+            self.rtpFlag = threading.Event()
 
         else:
             return
@@ -95,13 +123,9 @@ class Server:
                 break
 
             # read images
-            try:
-                data = open(self.imgList[self.frameSeq], 'rb')
-                data = data.read()
-            except:
-                break
+            data = self.videoLoader.getFrame()
             if data:
-                frameNumber = self.frameSeq
+                frameNumber = self.videoLoader.getSeq()
                 pack = self.makePacket(data, frameNumber)
                 try:
                     self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
