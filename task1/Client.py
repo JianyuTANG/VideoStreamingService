@@ -178,12 +178,6 @@ class Client(Frame):
 			self.rtspSeq += 1
 			request = 'TEARDOWN ' + self.fileName + ' RTSP/1.0\nCSeq: ' + str(self.rtspSeq) + '\nSession: ' + str(self.sessionId) 
 			self.requestSent = self.TEARDOWN
-
-		# Describe request
-		elif requestCode == self.DESCRIBE:
-			pass
-		else:
-			return
 		
 		# Send the RTSP request using rtspSocket.
 		self.rtspSocket.send(request.encode())
