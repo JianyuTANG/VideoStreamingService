@@ -16,7 +16,10 @@ class GBN_Receiver:
 
     def recv(self):
         while True:
-            data, addr = self.sock.recvfrom(40960)
+            try:
+                data, addr = self.sock.recvfrom(40960)
+            except:
+                raise IOError
             if data:
                 self._extract_pkt(data)
                 seq = int(self.header)

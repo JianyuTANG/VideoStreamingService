@@ -5,6 +5,7 @@ import os
 class VideoLoader:
     def __init__(self, videoName):
         videoName = os.path.join('videos/', videoName)
+        print(videoName)
         if not os.path.isfile(videoName):
             raise IOError
         try:
@@ -42,4 +43,7 @@ class VideoLoader:
         return self.fps
 
     def __del__(self):
-        self.video.release()
+        try:
+            self.video.release()
+        except:
+            pass

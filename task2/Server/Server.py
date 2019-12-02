@@ -60,6 +60,7 @@ class Server:
             except IOError:
                 reply = 'RTSP/1.0 404 FAIL\nCSeq: ' + seqNum + '\nSession: ' + self.session
                 self.rtspSocket.sendall(reply.encode())
+                print('setup error')
                 return
 
             self.frameSeq = 0
@@ -77,6 +78,7 @@ class Server:
             fps = self.videoLoader.getFps()
             reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
             reply += '\nLen: ' + str(len) + '\nFps: ' + str(fps)
+            print(reply)
             self.rtspSocket.sendall(reply.encode())
 
         elif rtspType == Server.PLAY and self.state == Server.READY:
