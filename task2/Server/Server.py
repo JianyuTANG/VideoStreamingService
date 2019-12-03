@@ -76,8 +76,9 @@ class Server:
         elif rtspType == Server.DESCRIPTION and self.state == Server.READY:
             len = self.videoLoader.getLen()
             fps = self.videoLoader.getFps()
+            height = self.videoLoader.getHeight()
             reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
-            reply += '\nLen: ' + str(len) + '\nFps: ' + str(fps)
+            reply += '\nLen: ' + str(len) + '\nFps: ' + str(fps) + '\nheight: ' + str(height)
             print(reply)
             self.rtspSocket.sendall(reply.encode())
 
@@ -118,41 +119,40 @@ class Server:
             return
 
     def sendRtpPacket(self):
-        data = self.videoLoader.getFrame(1)
-        print(type(data))
-        if data is not None:
-            frameNumber = self.videoLoader.getSeq()
-            print('framenum: ' + str(frameNumber))
-            pack = self.makePacket(data, frameNumber)
-            print(pack)
+        # data = self.videoLoader.getFrame(80)
+        # if data is not None:
+        #     frameNumber = self.videoLoader.getSeq()
+        #     print('framenum: ' + str(frameNumber))
+        #     pack = self.makePacket(data, frameNumber)
+        #     print(pack)
+        #
+        #     try:
+        #         x = self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
+        #         print(x)
+        #         print('pack' + str(self.frameSeq))
+        #         self.frameSeq += 1
+        #     except:
+        #         print('error')
+        print('start transmitting')
+        while True:
+            self.rtpFlag.wait(0.05)
+            if self.rtpFlag.isSet():
+                break
 
-            try:
-                x = self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
-                print(x)
-                print('pack' + str(self.frameSeq))
-                self.frameSeq += 1
-            except:
-                print('error')
-        # print('start transmitting')
-        # while True:
-        #     self.rtpFlag.wait(0.05)
-        #     if self.rtpFlag.isSet():
-        #         break
-        #
-        #     # read images
-        #     data = self.videoLoader.getFrame(30)
-        #     if data is not None:
-        #         frameNumber = self.videoLoader.getSeq()
-        #         pack = self.makePacket(data, frameNumber)
-        #         print(len(pack))
-        #
-        #         try:
-        #             print((self.clientIp, self.clientRtpPort))
-        #             self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
-        #             print('pack' + str(self.frameSeq))
-        #             self.frameSeq += 1
-        #         except:
-        #             print('error')
+            # read images
+            data = self.videoLoader.getFrame(30)
+            if data is not None:
+                frameNumber = self.videoLoader.getSeq()
+                pack = self.makePacket(data, frameNumber)
+                print(len(pack))
+
+                try:
+                    print((self.clientIp, self.clientRtpPort))
+                    self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
+                    print('pack' + str(self.frameSeq))
+                    self.frameSeq += 1
+                except:
+                    print('error')
 
     def makePacket(self, payload, frameSeq):
         version = 2

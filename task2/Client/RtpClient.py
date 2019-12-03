@@ -5,7 +5,8 @@ from RtpPacket import RtpPacket
 import socket
 import time
 import threading
-import os
+import numpy as np
+from cv2 import *
 
 
 CACHE_FILE_NAME = "cache-"
@@ -87,7 +88,7 @@ class RtpClient(Frame):
         # Write the RTSP request to be sent.
         request = 'SETUP ' + movieName + ' RTSP/1.0\nCSeq: ' + str(
             self.rtspSeq) + '\nTransport: RTP/UDP; client_port= ' + str(self.rtpPort)
-        print(request)
+        # print(request)
         try:
             self.rtspSocket.sendall(request.encode())
         except:
@@ -105,7 +106,7 @@ class RtpClient(Frame):
         self.rtspSeq += 1
         request = 'DESCRIPTION ' + self.fileName + ' RTSP/1.0\nCSeq: ' + str(self.rtspSeq) + '\nSession: ' + str(
             self.sessionId)
-        print(request)
+        # print(request)
         try:
             self.rtspSocket.sendall(request.encode())
         except:
@@ -122,7 +123,7 @@ class RtpClient(Frame):
         self.rtspSeq += 1
         request = 'PLAY ' + self.fileName + ' RTSP/1.0\nCSeq: ' + str(self.rtspSeq) + '\nSession: ' + str(
             self.sessionId)
-        print(request)
+        # print(request)
         threading.Thread(target=self.listenRtp).start()
         try:
             self.rtspSocket.sendall(request.encode())
@@ -223,13 +224,16 @@ class RtpClient(Frame):
                             return
                         length = int(float(lines[3].split()[1]))
                         fps = int(float(lines[4].split()[1]))
+                        height = int(float(lines[5].split()[1]))
                         self.length = length
                         self.fps = fps
+                        self.height = height
                         framenum = int(length * fps)
-                        print('framenum: ' + str(framenum))
+                        # print('framenum: ' + str(framenum))
                         self.buffer = [None for i in range(framenum + 100)]
                         self.duration = 1 / fps
                         self.state = RtpClient.READY
+                        self.frameSeq = 0
 
                     elif self.requestSent == RtpClient.PLAY:
                         self.state = RtpClient.PLAYING
@@ -255,17 +259,16 @@ class RtpClient(Frame):
         while True:
             try:
                 data = self.rtpSocket.recvfrom(62040)[0]
-                print('recv a msg')
                 if data:
-                    print('recv a msg')
-                    print(data)
+                    # print('recv a msg')
+                    # print(data)
                     rtpPacket = RtpPacket()
                     rtpPacket.decode(data)
 
                     currFrameNbr = rtpPacket.seqNum()
-                    print("Current Seq Num: " + str(currFrameNbr))
+                    # print("Current Seq Num: " + str(currFrameNbr))
 
-                    if self.buffer[currFrameNbr] is not None:
+                    if self.buffer[currFrameNbr] is None:
                         self.buffer[currFrameNbr] = rtpPacket.getPayload()
 
                     # if currFrameNbr > self.frameNbr:  # Discard the late packet
@@ -285,23 +288,27 @@ class RtpClient(Frame):
                     break
 
     def updateFrames(self):
+        print('enter updateFrames')
         while True:
             if self.playEvent.isSet() or self.teardownAcked == 1:
+                print('break')
                 break
-
-
-            if self.buffer[self.frameSeq] is not None:
-                print(self.frameSeq)
-                print(len(self.buffer[self.frameSeq]))
-                time.sleep(self.duration)
-                cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
-                file = open(cachename, "wb")
-                file.write(self.buffer[self.frameSeq])
-                file.close()
-                photo = ImageTk.PhotoImage(Image.open(cachename))
-                self.label.configure(image=photo, height=288)
+            data = self.buffer[self.frameSeq]
+            if data is not None:
+                # print('updating')
+                img = np.fromstring(data, np.uint8)
+                # print(img)
+                img = imdecode(img, IMREAD_COLOR)
+                # print(img)
+                b, g, r = cv2.split(img)
+                img = cv2.merge((r, g, b))
+                photo = ImageTk.PhotoImage(Image.fromarray(img))
+                self.label.configure(image=photo, height=self.height)
                 self.label.image = photo
                 self.frameSeq += 1
+                time.sleep(self.duration)
+            else:
+                print(self.buffer[self.frameSeq])
 
     def handler(self):
         """Handler on explicitly closing the GUI window."""
