@@ -16,19 +16,21 @@ class VideoLoader:
             raise IOError
         self.frameSeq = 0
 
-    def getFrame(self, quality):
+    def getFrame(self, quality=100):
         ret, frame = self.video.read()
         if ret:
-            q = ['CV_IMWRITE_WEBP_QUALITY', quality]
-            ret, buffer = imencode('WEBP', frame, q)
+            q = [int(IMWRITE_WEBP_QUALITY), quality]
+            ret, buffer = imencode('.webp', frame, q)
             if ret:
+                print(type(buffer))
+                print(buffer)
                 return buffer
         return None
 
     def reposition(self, sec):
         milisec = sec * 1000
         try:
-            self.video.set(cv2.CAP_PROP_POS_MSEC, milisec)
+            self.video.set(CAP_PROP_POS_MSEC, milisec)
         except:
             return False
         return True

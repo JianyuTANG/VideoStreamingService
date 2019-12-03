@@ -118,23 +118,41 @@ class Server:
             return
 
     def sendRtpPacket(self):
-        print('start transmitting')
-        while True:
-            self.rtpFlag.wait(0.05)
-            if self.rtpFlag.isSet():
-                break
+        data = self.videoLoader.getFrame(1)
+        print(type(data))
+        if data is not None:
+            frameNumber = self.videoLoader.getSeq()
+            print('framenum: ' + str(frameNumber))
+            pack = self.makePacket(data, frameNumber)
+            print(pack)
 
-            # read images
-            data = self.videoLoader.getFrame()
-            if data:
-                frameNumber = self.videoLoader.getSeq()
-                pack = self.makePacket(data, frameNumber)
-                try:
-                    self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
-                    print('pack' + str(self.frameSeq))
-                    self.frameSeq += 1
-                except:
-                    print('error')
+            try:
+                x = self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
+                print(x)
+                print('pack' + str(self.frameSeq))
+                self.frameSeq += 1
+            except:
+                print('error')
+        # print('start transmitting')
+        # while True:
+        #     self.rtpFlag.wait(0.05)
+        #     if self.rtpFlag.isSet():
+        #         break
+        #
+        #     # read images
+        #     data = self.videoLoader.getFrame(30)
+        #     if data is not None:
+        #         frameNumber = self.videoLoader.getSeq()
+        #         pack = self.makePacket(data, frameNumber)
+        #         print(len(pack))
+        #
+        #         try:
+        #             print((self.clientIp, self.clientRtpPort))
+        #             self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
+        #             print('pack' + str(self.frameSeq))
+        #             self.frameSeq += 1
+        #         except:
+        #             print('error')
 
     def makePacket(self, payload, frameSeq):
         version = 2

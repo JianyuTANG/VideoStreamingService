@@ -47,6 +47,7 @@ class RtpClient(Frame):
         self.rtspSeq = 0
         self.fileName = '1.mp4'
         self.sessionId = 0
+        self.teardownAcked = 0
 
     def createWidgets(self):
         """Build GUI."""
@@ -122,6 +123,7 @@ class RtpClient(Frame):
         request = 'PLAY ' + self.fileName + ' RTSP/1.0\nCSeq: ' + str(self.rtspSeq) + '\nSession: ' + str(
             self.sessionId)
         print(request)
+        threading.Thread(target=self.listenRtp).start()
         try:
             self.rtspSocket.sendall(request.encode())
         except:
@@ -129,6 +131,7 @@ class RtpClient(Frame):
             return False
 
         self.requestSent = RtpClient.PLAY
+
         return True
 
     def pauseMovie(self):
@@ -213,19 +216,25 @@ class RtpClient(Frame):
                         self.decribeMovie()
 
                     elif self.requestSent == RtpClient.DESCRIPTION:
-                        self.state = RtpClient.READY
+                        try:
+                            self.rtpSocket.bind(('', self.rtpPort))
+                        except:
+                            tkMessageBox.showwarning('Binding Failed', 'Fail to bind RTP socket')
+                            return
                         length = int(float(lines[3].split()[1]))
                         fps = int(float(lines[4].split()[1]))
                         self.length = length
                         self.fps = fps
                         framenum = int(length * fps)
+                        print('framenum: ' + str(framenum))
                         self.buffer = [None for i in range(framenum + 100)]
                         self.duration = 1 / fps
+                        self.state = RtpClient.READY
 
                     elif self.requestSent == RtpClient.PLAY:
                         self.state = RtpClient.PLAYING
                         self.playEvent = threading.Event()
-                        threading.Thread(target=self.listenRtp).start()
+                        threading.Thread(target=self.updateFrames).start()
 
                     elif self.requestSent == RtpClient.PAUSE:
                         self.state = RtpClient.READY
@@ -245,8 +254,11 @@ class RtpClient(Frame):
         print('start listen')
         while True:
             try:
-                data = self.rtpSocket.recv(20480)
+                data = self.rtpSocket.recvfrom(62040)[0]
+                print('recv a msg')
                 if data:
+                    print('recv a msg')
+                    print(data)
                     rtpPacket = RtpPacket()
                     rtpPacket.decode(data)
 
@@ -261,6 +273,7 @@ class RtpClient(Frame):
                     #    self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
             except:
                 # Stop listening upon requesting PAUSE or TEARDOWN
+                print('except')
                 if self.playEvent.isSet():
                     break
 
@@ -276,7 +289,10 @@ class RtpClient(Frame):
             if self.playEvent.isSet() or self.teardownAcked == 1:
                 break
 
-            if self.buffer[self.frameSeq]:
+
+            if self.buffer[self.frameSeq] is not None:
+                print(self.frameSeq)
+                print(len(self.buffer[self.frameSeq]))
                 time.sleep(self.duration)
                 cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
                 file = open(cachename, "wb")
