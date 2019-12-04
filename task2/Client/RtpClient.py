@@ -49,6 +49,8 @@ class RtpClient(Frame):
         self.fileName = '1.mp4'
         self.sessionId = 0
         self.teardownAcked = 0
+        self.currentSec = IntVar()
+        self.currentSec.set(0)
 
     def createWidgets(self):
         """Build GUI."""
@@ -56,29 +58,33 @@ class RtpClient(Frame):
         self.setup = Button(self.master, width=20, padx=3, pady=3)
         self.setup["text"] = "Setup"
         self.setup["command"] = self.setupMovie
-        self.setup.grid(row=1, column=0, padx=2, pady=2)
+        self.setup.grid(row=2, column=0, padx=2, pady=2)
 
         # Create Play button
         self.start = Button(self.master, width=20, padx=3, pady=3)
         self.start["text"] = "Play"
         self.start["command"] = self.playMovie
-        self.start.grid(row=1, column=1, padx=2, pady=2)
+        self.start.grid(row=2, column=1, padx=2, pady=2)
 
         # Create Pause button
         self.pause = Button(self.master, width=20, padx=3, pady=3)
         self.pause["text"] = "Pause"
         self.pause["command"] = self.pauseMovie
-        self.pause.grid(row=1, column=2, padx=2, pady=2)
+        self.pause.grid(row=2, column=2, padx=2, pady=2)
 
         # Create Teardown button
         self.teardown = Button(self.master, width=20, padx=3, pady=3)
         self.teardown["text"] = "Teardown"
         self.teardown["command"] = self.exitClient
-        self.teardown.grid(row=1, column=3, padx=2, pady=2)
+        self.teardown.grid(row=2, column=3, padx=2, pady=2)
 
         # Create a label to display the movie
         self.label = Label(self.master, height=19)
         self.label.grid(row=0, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
+
+        # create a scale
+        self.progress = Scale(self.master, from_=0, to=100, orient=HORIZONTAL)
+        self.progress.grid(row=1, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
 
     def setupMovie(self):
         self.state = RtpClient.INIT
@@ -181,9 +187,9 @@ class RtpClient(Frame):
             tkMessageBox.showwarning('Sending Failed', 'Fail to send rtsp message')
             return False
         self.master.destroy()  # Close the gui window
-        cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
-        if os.path.isfile(cachename):
-            os.remove(cachename)
+        # cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
+        # if os.path.isfile(cachename):
+        #     os.remove(cachename)
         self.requestSent = RtpClient.REPOSITION
         return True
 
@@ -194,6 +200,9 @@ class RtpClient(Frame):
 
             if reply:
                 self.parseRtspReply(reply.decode("utf-8"))
+
+    def printscale(self, sec):
+        print(sec)
 
     def parseRtspReply(self, data):
         """Parse the RTSP reply from the server."""
@@ -229,11 +238,18 @@ class RtpClient(Frame):
                         self.fps = fps
                         self.height = height
                         framenum = int(length * fps)
-                        # print('framenum: ' + str(framenum))
+                        print('framenum: ' + str(framenum))
+                        print('fps: ' + str(fps))
+                        print('len: ' + str(length))
                         self.buffer = [None for i in range(framenum + 100)]
-                        self.duration = 1 / fps
+                        self.duration = 1 / fps - 0.01
                         self.state = RtpClient.READY
                         self.frameSeq = 0
+                        self.progress = Scale(self.master, from_=0, to=length, orient=HORIZONTAL,
+                                              variable=self.currentSec,
+                                              command=self.process_reposition)
+                        self.progress.grid(row=1, column=0, columnspan=4,
+                                           sticky=W + E + N + S, padx=5, pady=5)
 
                     elif self.requestSent == RtpClient.PLAY:
                         self.state = RtpClient.PLAYING
@@ -246,7 +262,8 @@ class RtpClient(Frame):
                         self.playEvent.set()
 
                     elif self.requestSent == RtpClient.REPOSITION:
-                        self.frameSeq = int(lines[3][1])
+                        self.frameSeq = int(lines[3].split()[1])
+                        # print('after repositioning: ' + str(self.frameSeq))
 
                     elif self.requestSent == RtpClient.TEARDOWN:
                         self.state = RtpClient.INIT
@@ -269,7 +286,14 @@ class RtpClient(Frame):
                     # print("Current Seq Num: " + str(currFrameNbr))
 
                     if self.buffer[currFrameNbr] is None:
-                        self.buffer[currFrameNbr] = rtpPacket.getPayload()
+                        data = rtpPacket.getPayload()
+                        threading.Thread(target=self._process_frame, args=(data, currFrameNbr,)).start()
+                        # img = np.fromstring(data, np.uint8)
+                        # img = imdecode(img, IMREAD_COLOR)
+                        # img = cvtColor(img, COLOR_BGR2RGB)
+                        # photo = ImageTk.PhotoImage(Image.fromarray(img))
+                        # print(currFrameNbr)
+                        # self.buffer[currFrameNbr] = photo
 
                     # if currFrameNbr > self.frameNbr:  # Discard the late packet
                     #    self.frameNbr = currFrameNbr
@@ -287,28 +311,30 @@ class RtpClient(Frame):
                     self.rtpSocket.close()
                     break
 
+    def _process_frame(self, data, currFrameNbr):
+        img = np.fromstring(data, np.uint8)
+        img = imdecode(img, IMREAD_COLOR)
+        # img = cvtColor(img, COLOR_BGR2RGB)
+        img = img[:, :, ::-1]
+        photo = ImageTk.PhotoImage(Image.fromarray(img))
+        print(currFrameNbr)
+        self.buffer[currFrameNbr] = photo
+
     def updateFrames(self):
         print('enter updateFrames')
+        time.sleep(5)
         while True:
             if self.playEvent.isSet() or self.teardownAcked == 1:
                 print('break')
                 break
-            data = self.buffer[self.frameSeq]
-            if data is not None:
-                # print('updating')
-                img = np.fromstring(data, np.uint8)
-                # print(img)
-                img = imdecode(img, IMREAD_COLOR)
-                # print(img)
-                b, g, r = cv2.split(img)
-                img = cv2.merge((r, g, b))
-                photo = ImageTk.PhotoImage(Image.fromarray(img))
+            time.sleep(self.duration)
+            photo = self.buffer[self.frameSeq]
+            if photo is not None:
                 self.label.configure(image=photo, height=self.height)
                 self.label.image = photo
                 self.frameSeq += 1
-                time.sleep(self.duration)
             else:
-                print(self.buffer[self.frameSeq])
+                print('lack ' + str(self.frameSeq))
 
     def handler(self):
         """Handler on explicitly closing the GUI window."""
@@ -317,6 +343,17 @@ class RtpClient(Frame):
             self.exitClient()
         else:  # When the user presses cancel, resume playing.
             self.playMovie()
+
+    def process_reposition(self, sec):
+        # print(self.currentSec.get())
+        threading.Thread(target=self._process_reposition, args=(sec,)).start()
+
+    def _process_reposition(self, sec):
+        time.sleep(0.2)
+        sec = int(sec)
+        if sec != self.currentSec.get():
+            return
+        self.repositionMovie(sec)
 
 
 root = Tk()

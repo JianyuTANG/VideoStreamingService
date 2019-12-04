@@ -101,7 +101,7 @@ class Server:
                 if self.videoLoader.reposition(sec):
                     frameSeq = self.videoLoader.getSeq()
                     reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
-                    reply += '\nFrameseq: ' + str(frameSeq)
+                    reply += '\nFrameseq: ' + str(frameSeq + 1)
                 else:
                     reply = 'RTSP/1.0 404 FAIL\nCSeq: ' + seqNum + '\nSession: ' + self.session
                 self.rtspSocket.sendall(reply.encode())
@@ -119,20 +119,6 @@ class Server:
             return
 
     def sendRtpPacket(self):
-        # data = self.videoLoader.getFrame(80)
-        # if data is not None:
-        #     frameNumber = self.videoLoader.getSeq()
-        #     print('framenum: ' + str(frameNumber))
-        #     pack = self.makePacket(data, frameNumber)
-        #     print(pack)
-        #
-        #     try:
-        #         x = self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
-        #         print(x)
-        #         print('pack' + str(self.frameSeq))
-        #         self.frameSeq += 1
-        #     except:
-        #         print('error')
         print('start transmitting')
         while True:
             self.rtpFlag.wait(0.05)

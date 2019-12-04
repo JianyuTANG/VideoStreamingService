@@ -37,8 +37,10 @@ class VideoLoader:
         milisec = sec * 1000
         try:
             self.video.set(CAP_PROP_POS_MSEC, milisec)
+            self.frameSeq = int(self.video.get(cv2.CAP_PROP_POS_FRAMES) - 1)
         except:
             return False
+
         return True
 
     def getSeq(self):
