@@ -7,6 +7,7 @@ import time
 import threading
 import numpy as np
 from cv2 import *
+from io import BytesIO
 
 
 CACHE_FILE_NAME = "cache-"
@@ -79,8 +80,8 @@ class RtpClient(Frame):
         self.teardown.grid(row=2, column=3, padx=2, pady=2)
 
         # Create a label to display the movie
-        self.label = Label(self.master, height=19)
-        self.label.grid(row=0, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
+        # self.label = Label(self.master, height=19)
+        # self.label.grid(row=0, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
 
         # create a scale
         self.progress = Scale(self.master, from_=0, to=100, orient=HORIZONTAL)
@@ -173,6 +174,9 @@ class RtpClient(Frame):
             return False
 
         self.requestSent = RtpClient.REPOSITION
+        if self.state == RtpClient.PLAYING:
+            self.state = RtpClient.READY
+            self.playEvent.set()
         return True
 
     def exitClient(self):
@@ -234,6 +238,7 @@ class RtpClient(Frame):
                         length = int(float(lines[3].split()[1]))
                         fps = int(float(lines[4].split()[1]))
                         height = int(float(lines[5].split()[1]))
+                        width = int(float(lines[6].split()[1]))
                         self.length = length
                         self.fps = fps
                         self.height = height
@@ -242,7 +247,7 @@ class RtpClient(Frame):
                         print('fps: ' + str(fps))
                         print('len: ' + str(length))
                         self.buffer = [None for i in range(framenum + 100)]
-                        self.duration = 1 / fps - 0.01
+                        self.duration = 1 / fps
                         self.state = RtpClient.READY
                         self.frameSeq = 0
                         self.progress = Scale(self.master, from_=0, to=length, orient=HORIZONTAL,
@@ -250,6 +255,8 @@ class RtpClient(Frame):
                                               command=self.process_reposition)
                         self.progress.grid(row=1, column=0, columnspan=4,
                                            sticky=W + E + N + S, padx=5, pady=5)
+                        self.canvas = Canvas(self.master, width=width, height=height)
+                        self.canvas.grid(row=0, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
 
                     elif self.requestSent == RtpClient.PLAY:
                         self.state = RtpClient.PLAYING
@@ -264,6 +271,9 @@ class RtpClient(Frame):
                     elif self.requestSent == RtpClient.REPOSITION:
                         self.frameSeq = int(lines[3].split()[1])
                         # print('after repositioning: ' + str(self.frameSeq))
+                        self.state = RtpClient.PLAYING
+                        self.playEvent = threading.Event()
+                        threading.Thread(target=self.updateFrames).start()
 
                     elif self.requestSent == RtpClient.TEARDOWN:
                         self.state = RtpClient.INIT
@@ -277,35 +287,23 @@ class RtpClient(Frame):
             try:
                 data = self.rtpSocket.recvfrom(62040)[0]
                 if data:
-                    # print('recv a msg')
-                    # print(data)
                     rtpPacket = RtpPacket()
                     rtpPacket.decode(data)
 
                     currFrameNbr = rtpPacket.seqNum()
-                    # print("Current Seq Num: " + str(currFrameNbr))
 
                     if self.buffer[currFrameNbr] is None:
+                        print(currFrameNbr)
                         data = rtpPacket.getPayload()
-                        threading.Thread(target=self._process_frame, args=(data, currFrameNbr,)).start()
-                        # img = np.fromstring(data, np.uint8)
-                        # img = imdecode(img, IMREAD_COLOR)
-                        # img = cvtColor(img, COLOR_BGR2RGB)
-                        # photo = ImageTk.PhotoImage(Image.fromarray(img))
-                        # print(currFrameNbr)
-                        # self.buffer[currFrameNbr] = photo
+                        img = Image.open(BytesIO(data))
+                        photo = ImageTk.PhotoImage(img)
+                        self.buffer[currFrameNbr] = photo
 
-                    # if currFrameNbr > self.frameNbr:  # Discard the late packet
-                    #    self.frameNbr = currFrameNbr
-                    #    self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
             except:
-                # Stop listening upon requesting PAUSE or TEARDOWN
                 print('except')
                 if self.playEvent.isSet():
                     break
 
-                # Upon receiving ACK for TEARDOWN request,
-                # close the RTP socket
                 if self.teardownAcked == 1:
                     self.rtpSocket.shutdown(socket.SHUT_RDWR)
                     self.rtpSocket.close()
@@ -317,12 +315,12 @@ class RtpClient(Frame):
         # img = cvtColor(img, COLOR_BGR2RGB)
         img = img[:, :, ::-1]
         photo = ImageTk.PhotoImage(Image.fromarray(img))
-        print(currFrameNbr)
+        # print(currFrameNbr)
         self.buffer[currFrameNbr] = photo
 
     def updateFrames(self):
         print('enter updateFrames')
-        time.sleep(5)
+        time.sleep(1)
         while True:
             if self.playEvent.isSet() or self.teardownAcked == 1:
                 print('break')
@@ -330,11 +328,19 @@ class RtpClient(Frame):
             time.sleep(self.duration)
             photo = self.buffer[self.frameSeq]
             if photo is not None:
-                self.label.configure(image=photo, height=self.height)
-                self.label.image = photo
+                # self.label.c.onfigure(image=photo, height=self.height)
+                # self.label.image = photo
+                self.canvas.create_image(0, 0, anchor=NW, image=photo)
+                self.master.update_idletasks()
+                self.master.update()
+                self.buffer[self.frameSeq - 1] = None
                 self.frameSeq += 1
             else:
                 print('lack ' + str(self.frameSeq))
+                self.frameSeq += 1
+            if self.frameSeq % self.fps == 0:
+                pass
+
 
     def handler(self):
         """Handler on explicitly closing the GUI window."""

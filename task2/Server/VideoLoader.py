@@ -1,12 +1,12 @@
 from cv2 import *
 import os
 import numpy as np
-from PIL import Image, ImageTk
-from tkinter import Tk
 
 
 class VideoLoader:
     def __init__(self, videoName):
+        folderName = videoName.split('.')[0]
+        self.folderName = os.path.join('videos/', folderName)
         videoName = os.path.join('videos/', videoName)
         print(videoName)
         if not os.path.isfile(videoName):
@@ -16,22 +16,34 @@ class VideoLoader:
             self.fps = self.video.get(CAP_PROP_FPS)
             self.frameNum = self.video.get(CAP_PROP_FRAME_COUNT)
             self.height = self.video.get(CAP_PROP_FRAME_HEIGHT)
+            self.width = self.video.get(CAP_PROP_FRAME_WIDTH)
         except:
             raise IOError
         self.frameSeq = -1
 
     def getFrame(self, quality=100):
-        ret, frame = self.video.read()
-        if ret:
-            frame = np.array(frame)
-            q = [int(IMWRITE_JPEG_QUALITY), quality]
-            ret, buffer = imencode('.jpg', frame, q)
-            buffer = np.array(buffer)
-            buffer = buffer.tostring()
-            if ret:
-                self.frameSeq += 1
-                return buffer
-        return None
+        self.frameSeq += 1
+        img_name = str(self.frameSeq) + '.jpg'
+        img_name = os.path.join(self.folderName, img_name)
+        print(img_name)
+        try:
+            img = open(img_name, 'rb')
+            buffer = img.read()
+
+        except:
+            buffer = None
+        return buffer
+        # ret, frame = self.video.read()
+        # if ret:
+        #     frame = np.array(frame)
+        #     q = [int(IMWRITE_JPEG_QUALITY), quality]
+        #     ret, buffer = imencode('.jpg', frame, q)
+        #     buffer = np.array(buffer)
+        #     buffer = buffer.tostring()
+        #     if ret:
+        #         self.frameSeq += 1
+        #         return buffer
+        # return None
 
     def reposition(self, sec):
         milisec = sec * 1000
@@ -54,6 +66,9 @@ class VideoLoader:
 
     def getHeight(self):
         return self.height
+
+    def getWidth(self):
+        return self.width
 
     def __del__(self):
         try:

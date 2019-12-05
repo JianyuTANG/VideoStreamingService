@@ -5,6 +5,7 @@ from VideoLoader import VideoLoader
 import random
 import os
 import glob
+import argparse
 
 
 class Server:
@@ -77,8 +78,10 @@ class Server:
             len = self.videoLoader.getLen()
             fps = self.videoLoader.getFps()
             height = self.videoLoader.getHeight()
+            width = self.videoLoader.getWidth()
             reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
-            reply += '\nLen: ' + str(len) + '\nFps: ' + str(fps) + '\nheight: ' + str(height)
+            reply += '\nLen: ' + str(len) + '\nFps: ' + str(fps)
+            reply += '\nheight: ' + str(height) + '\nwidth ' + str(width)
             print(reply)
             self.rtspSocket.sendall(reply.encode())
 
@@ -126,7 +129,7 @@ class Server:
                 break
 
             # read images
-            data = self.videoLoader.getFrame(30)
+            data = self.videoLoader.getFrame(10)
             if data is not None:
                 frameNumber = self.videoLoader.getSeq()
                 pack = self.makePacket(data, frameNumber)
@@ -139,6 +142,8 @@ class Server:
                     self.frameSeq += 1
                 except:
                     print('error')
+            else:
+                break
 
     def makePacket(self, payload, frameSeq):
         version = 2
