@@ -263,6 +263,9 @@ class RtpClient(Frame):
                                            sticky=W + E + N + S, padx=5, pady=5)
                         self.canvas = Canvas(self.master, width=width, height=height)
                         self.canvas.grid(row=0, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
+                        img = Image.open('loading.gif')
+                        photo = ImageTk.PhotoImage(img)
+                        self.image_on_canvas = self.canvas.create_image(0, 0, anchor=NW, image=photo)
 
                     elif self.requestSent == RtpClient.PLAY:
                         self.state = RtpClient.PLAYING
@@ -334,6 +337,7 @@ class RtpClient(Frame):
 
     def updateFrames(self):
         print('enter updateFrames')
+
         time.sleep(1)
         while True:
             if self.playEvent.isSet() or self.teardownAcked == 1:
@@ -344,10 +348,10 @@ class RtpClient(Frame):
             if photo is not None:
                 # self.label.configure(image=photo, height=self.height)
                 # self.label.image = photo
-
-                self.canvas.create_image(0, 0, anchor=NW, image=photo)
-                self.master.update_idletasks()
-                self.master.update()
+                self.canvas.itemconfig(self.image_on_canvas, image=photo)
+                # self.canvas.create_image(0, 0, anchor=NW, image=photo)
+                # self.master.update_idletasks()
+                # self.master.update()
                 self.buffer[self.frameSeq - 1] = None
                 self.frameSeq += 1
             else:
