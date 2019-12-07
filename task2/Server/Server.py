@@ -39,6 +39,7 @@ class Server:
         while True:
             data = self.rtspSocket.recv(1024).decode()
             if data:
+                print(data)
                 self.parseRtspRequest(data)
 
     def parseRtspRequest(self, data):
@@ -51,7 +52,6 @@ class Server:
         rtspType = lines[0][0]
         print(rtspType)
         seqNum = lines[1][1]
-        print(seqNum)
 
         if rtspType == Server.SETUP and self.state == Server.INIT:
             # deal with the video
@@ -100,14 +100,23 @@ class Server:
 
         elif rtspType == Server.REPOSITION:
             if self.state == Server.READY or self.state == Server.PLAYING:
+                print('start reposition')
                 sec = int(lines[0][1])
+                if self.state == Server.PLAYING:
+                    self.rtpFlag.set()
                 if self.videoLoader.reposition(sec):
+                    print('reposition success')
                     frameSeq = self.videoLoader.getSeq()
                     reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
                     reply += '\nFrameseq: ' + str(frameSeq + 1)
                 else:
+                    print('reposition fail')
                     reply = 'RTSP/1.0 404 FAIL\nCSeq: ' + seqNum + '\nSession: ' + self.session
                 self.rtspSocket.sendall(reply.encode())
+                if self.state == Server.PLAYING:
+                    self.rtpFlag = threading.Event()
+                    threading.Thread(target=self.sendRtpPacket).start()
+
 
         elif rtspType == Server.TEARDOWN:
             self.rtpFlag.set()
@@ -124,7 +133,7 @@ class Server:
     def sendRtpPacket(self):
         print('start transmitting')
         while True:
-            self.rtpFlag.wait(0.05)
+            self.rtpFlag.wait(0.025)
             if self.rtpFlag.isSet():
                 break
 
@@ -133,12 +142,10 @@ class Server:
             if data is not None:
                 frameNumber = self.videoLoader.getSeq()
                 pack = self.makePacket(data, frameNumber)
-                print(len(pack))
-
                 try:
-                    print((self.clientIp, self.clientRtpPort))
+                    # print((self.clientIp, self.clientRtpPort))
                     self.rtpSocket.sendto(pack, (self.clientIp, self.clientRtpPort))
-                    print('pack' + str(self.frameSeq))
+                    # print('pack ' + str(self.frameSeq))
                     self.frameSeq += 1
                 except:
                     print('error')

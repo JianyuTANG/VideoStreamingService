@@ -22,28 +22,28 @@ class VideoLoader:
         self.frameSeq = -1
 
     def getFrame(self, quality=100):
-        self.frameSeq += 1
-        img_name = str(self.frameSeq) + '.jpg'
-        img_name = os.path.join(self.folderName, img_name)
-        print(img_name)
-        try:
-            img = open(img_name, 'rb')
-            buffer = img.read()
-
-        except:
-            buffer = None
-        return buffer
-        # ret, frame = self.video.read()
-        # if ret:
-        #     frame = np.array(frame)
-        #     q = [int(IMWRITE_JPEG_QUALITY), quality]
-        #     ret, buffer = imencode('.jpg', frame, q)
-        #     buffer = np.array(buffer)
-        #     buffer = buffer.tostring()
-        #     if ret:
-        #         self.frameSeq += 1
-        #         return buffer
-        # return None
+        # self.frameSeq += 1
+        # img_name = str(self.frameSeq) + '.jpg'
+        # img_name = os.path.join(self.folderName, img_name)
+        # print(img_name)
+        # try:
+        #     img = open(img_name, 'rb')
+        #     buffer = img.read()
+        #
+        # except:
+        #     buffer = None
+        # return buffer
+        ret, frame = self.video.read()
+        if ret:
+            frame = np.array(frame)
+            q = [int(IMWRITE_JPEG_QUALITY), quality]
+            ret, buffer = imencode('.jpg', frame, q)
+            buffer = np.array(buffer)
+            buffer = buffer.tostring()
+            if ret:
+                self.frameSeq += 1
+                return buffer
+        return None
 
     def reposition(self, sec):
         milisec = sec * 1000

@@ -174,9 +174,11 @@ class RtpClient(Frame):
             return False
 
         self.requestSent = RtpClient.REPOSITION
+        print(request)
         if self.state == RtpClient.PLAYING:
-            self.state = RtpClient.READY
+            # self.state = RtpClient.READY
             self.playEvent.set()
+            print('暂停播放 reposition')
         return True
 
     def exitClient(self):
@@ -200,7 +202,11 @@ class RtpClient(Frame):
     def recvRtspReply(self):
         """Receive RTSP reply from the server."""
         while True:
-            reply = self.rtspSocket.recv(1024)
+            try:
+                reply = self.rtspSocket.recv(1024)
+            except:
+                print('connection broke')
+                return
 
             if reply:
                 self.parseRtspReply(reply.decode("utf-8"))
@@ -270,10 +276,13 @@ class RtpClient(Frame):
 
                     elif self.requestSent == RtpClient.REPOSITION:
                         self.frameSeq = int(lines[3].split()[1])
+                        print('receive reposition')
                         # print('after repositioning: ' + str(self.frameSeq))
-                        self.state = RtpClient.PLAYING
-                        self.playEvent = threading.Event()
-                        threading.Thread(target=self.updateFrames).start()
+                        if self.state == RtpClient.PLAYING:
+                            print('7777777')
+                            time.sleep(0.3)
+                            self.playEvent = threading.Event()
+                            threading.Thread(target=self.updateFrames).start()
 
                     elif self.requestSent == RtpClient.TEARDOWN:
                         self.state = RtpClient.INIT
@@ -293,10 +302,15 @@ class RtpClient(Frame):
                     currFrameNbr = rtpPacket.seqNum()
 
                     if self.buffer[currFrameNbr] is None:
-                        print(currFrameNbr)
+                        # print(currFrameNbr)
                         data = rtpPacket.getPayload()
-                        img = Image.open(BytesIO(data))
-                        photo = ImageTk.PhotoImage(img)
+                        # img = Image.open(BytesIO(data))
+                        # photo = ImageTk.PhotoImage(img)
+
+                        img = np.fromstring(data, np.uint8)
+                        img = imdecode(img, IMREAD_COLOR)
+                        img = img[:, :, ::-1]
+                        photo = ImageTk.PhotoImage(Image.fromarray(img))
                         self.buffer[currFrameNbr] = photo
 
             except:
@@ -328,8 +342,9 @@ class RtpClient(Frame):
             time.sleep(self.duration)
             photo = self.buffer[self.frameSeq]
             if photo is not None:
-                # self.label.c.onfigure(image=photo, height=self.height)
+                # self.label.configure(image=photo, height=self.height)
                 # self.label.image = photo
+
                 self.canvas.create_image(0, 0, anchor=NW, image=photo)
                 self.master.update_idletasks()
                 self.master.update()
@@ -339,7 +354,7 @@ class RtpClient(Frame):
                 print('lack ' + str(self.frameSeq))
                 self.frameSeq += 1
             if self.frameSeq % self.fps == 0:
-                pass
+                self.currentSec.set(self.currentSec.get() + 1)
 
 
     def handler(self):
@@ -355,7 +370,7 @@ class RtpClient(Frame):
         threading.Thread(target=self._process_reposition, args=(sec,)).start()
 
     def _process_reposition(self, sec):
-        time.sleep(0.2)
+        time.sleep(0.1)
         sec = int(sec)
         if sec != self.currentSec.get():
             return
