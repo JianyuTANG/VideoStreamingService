@@ -87,6 +87,21 @@ class RtpClient(Frame):
         self.progress = Scale(self.master, from_=0, to=100, orient=HORIZONTAL)
         self.progress.grid(row=1, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
 
+        self.x1 = Button(self.master, width=20, padx=3, pady=3)
+        self.x1["text"] = "x1"
+        self.x1["command"] = self.setDuration1
+        self.x1.grid(row=3, column=1, padx=2, pady=2)
+
+        self.x15 = Button(self.master, width=20, padx=3, pady=3)
+        self.x15["text"] = "x1.5"
+        self.x15["command"] = self.setDuration15
+        self.x15.grid(row=3, column=2, padx=2, pady=2)
+
+        self.x05 = Button(self.master, width=20, padx=3, pady=3)
+        self.x05["text"] = "x0.5"
+        self.x05["command"] = self.setDuration05
+        self.x05.grid(row=3, column=0, padx=2, pady=2)
+
     def setupMovie(self):
         self.state = RtpClient.INIT
         # clear
@@ -283,7 +298,7 @@ class RtpClient(Frame):
                         # print('after repositioning: ' + str(self.frameSeq))
                         if self.state == RtpClient.PLAYING:
                             print('7777777')
-                            time.sleep(0.3)
+                            time.sleep(0.2)
                             self.playEvent = threading.Event()
                             threading.Thread(target=self.updateFrames).start()
 
@@ -379,6 +394,49 @@ class RtpClient(Frame):
         if sec != self.currentSec.get():
             return
         self.repositionMovie(sec)
+
+    def setDuration1(self):
+        if self.state == RtpClient.INIT:
+            return
+        elif self.duration == 1 / self.fps:
+            return
+        elif self.state == RtpClient.READY:
+            self.duration = 1 / self.fps
+        elif self.state == RtpClient.PLAYING:
+            self.playEvent.set()
+            time.sleep(0.2)
+            self.duration = 1 / self.fps
+            self.playEvent = threading.Event()
+            threading.Thread(target=self.updateFrames).start()
+
+    def setDuration15(self):
+        dur = 2 / (3 * self.fps)
+        if self.state == RtpClient.INIT:
+            return
+        elif self.duration == dur:
+            return
+        elif self.state == RtpClient.READY:
+            self.duration = dur
+        elif self.state == RtpClient.PLAYING:
+            self.playEvent.set()
+            time.sleep(0.2)
+            self.duration = dur
+            self.playEvent = threading.Event()
+            threading.Thread(target=self.updateFrames).start()
+
+    def setDuration05(self):
+        if self.state == RtpClient.INIT:
+            return
+        elif self.duration == 2 / self.fps:
+            return
+        elif self.state == RtpClient.READY:
+            self.duration = 2 / self.fps
+        elif self.state == RtpClient.PLAYING:
+            self.playEvent.set()
+            time.sleep(0.2)
+            self.duration = 2 / self.fps
+            self.playEvent = threading.Event()
+            threading.Thread(target=self.updateFrames).start()
 
 
 root = Tk()

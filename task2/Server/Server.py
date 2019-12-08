@@ -133,7 +133,7 @@ class Server:
     def sendRtpPacket(self):
         print('start transmitting')
         while True:
-            self.rtpFlag.wait(0.025)
+            self.rtpFlag.wait(0.035)
             if self.rtpFlag.isSet():
                 break
 
