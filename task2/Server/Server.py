@@ -79,9 +79,11 @@ class Server:
             fps = self.videoLoader.getFps()
             height = self.videoLoader.getHeight()
             width = self.videoLoader.getWidth()
+            framenum = self.videoLoader.getFrameNum()
             reply = 'RTSP/1.0 200 OK\nCSeq: ' + seqNum + '\nSession: ' + self.session
             reply += '\nLen: ' + str(len) + '\nFps: ' + str(fps)
             reply += '\nheight: ' + str(height) + '\nwidth ' + str(width)
+            reply += '\nframenum: ' + str(framenum)
             print(reply)
             self.rtspSocket.sendall(reply.encode())
 

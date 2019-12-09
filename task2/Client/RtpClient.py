@@ -52,6 +52,9 @@ class RtpClient(Frame):
         self.teardownAcked = 0
         self.currentSec = IntVar()
         self.currentSec.set(0)
+        self.isFullScreen = False
+
+        self.master.bind('<space>', func=self.processBlank)
 
     def createWidgets(self):
         """Build GUI."""
@@ -70,7 +73,7 @@ class RtpClient(Frame):
         # Create Pause button
         self.pause = Button(self.master, width=20, padx=3, pady=3)
         self.pause["text"] = "Pause"
-        self.pause["command"] = self.pauseMovie
+        self.pause["command"] = self.enter_full_screen
         self.pause.grid(row=2, column=2, padx=2, pady=2)
 
         # Create Teardown button
@@ -84,8 +87,8 @@ class RtpClient(Frame):
         # self.label.grid(row=0, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
 
         # create a scale
-        self.progress = Scale(self.master, from_=0, to=100, orient=HORIZONTAL)
-        self.progress.grid(row=1, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
+        # self.progress = Scale(self.master, from_=0, to=100, orient=HORIZONTAL)
+        # self.progress.grid(row=1, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
 
         self.x1 = Button(self.master, width=20, padx=3, pady=3)
         self.x1["text"] = "x1"
@@ -264,7 +267,8 @@ class RtpClient(Frame):
                         self.fps = fps
                         self.actualfps = fps
                         self.height = height
-                        framenum = int(length * fps)
+                        self.frameNum = int(float(lines[7].split()[1]))
+                        framenum = self.frameNum
                         print('framenum: ' + str(framenum))
                         print('fps: ' + str(fps))
                         print('len: ' + str(length))
@@ -374,6 +378,9 @@ class RtpClient(Frame):
                 self.frameSeq += 1
             if self.frameSeq % self.actualfps == 0:
                 self.currentSec.set(self.currentSec.get() + 1)
+            if self.frameSeq == self.frameNum:
+                self.state = RtpClient.READY
+                return
             time.sleep(self.duration)
 
 
@@ -422,6 +429,53 @@ class RtpClient(Frame):
             self.actualfps = newfps
             self.playEvent = threading.Event()
             threading.Thread(target=self.updateFrames).start()
+
+    def enter_full_screen(self):
+        if self.state == RtpClient.INIT:
+            return
+        self.isFullScreen = True
+        self.master.bind('<Escape>', func=self.processESC)
+        self.hideWidgets()
+        self.master.attributes("-fullscreen", True)
+
+    def quit_full_screen(self):
+        if not self.isFullScreen:
+            return
+        self.master.attributes("-fullscreen", False)
+        self.showWidgets()
+
+    def processBlank(self, ke):
+        if self.state == RtpClient.INIT:
+            return
+        if self.state == RtpClient.PLAYING:
+            self.pauseMovie()
+        else:
+            self.playMovie()
+
+    def processESC(self, ke):
+        if not self.isFullScreen:
+            return
+        self.quit_full_screen()
+
+    def hideWidgets(self):
+        self.setup.grid_forget()
+        self.start.grid_forget()
+        self.pause.grid_forget()
+        self.teardown.grid_forget()
+        self.x1.grid_forget()
+        self.x05.grid_forget()
+        self.x15.grid_forget()
+        self.progress.grid_forget()
+
+    def showWidgets(self):
+        self.setup.grid(row=2, column=0, padx=2, pady=2)
+        self.start.grid(row=2, column=1, padx=2, pady=2)
+        self.pause.grid(row=2, column=2, padx=2, pady=2)
+        self.teardown.grid(row=2, column=3, padx=2, pady=2)
+        self.progress.grid(row=1, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
+        self.x1.grid(row=3, column=1, padx=2, pady=2)
+        self.x15.grid(row=3, column=2, padx=2, pady=2)
+        self.x05.grid(row=3, column=0, padx=2, pady=2)
 
 
 root = Tk()

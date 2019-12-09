@@ -61,6 +61,9 @@ class VideoLoader:
     def getLen(self):
         return self.frameNum / self.fps
 
+    def getFrameNum(self):
+        return self.frameNum
+
     def getFps(self):
         return self.fps
 
