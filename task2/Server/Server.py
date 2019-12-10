@@ -5,7 +5,6 @@ from VideoLoader import VideoLoader
 import random
 import os
 import glob
-import argparse
 
 
 class Server:
@@ -174,12 +173,28 @@ class Server:
         return rtpPacket.getPacket()
 
 
+folderName = 'videos/'
+format_list = ['*.mp4', '*.avi']
+
+
+def sendVideoList(video_list, sock):
+    length = len(video_list)
+    msg = 'total: ' + str(length)
+    for videoName in video_list:
+        msg += '\nname: ' + videoName
+    sock.sendall(msg.encode())
+
+
 def runService(port):
+    video_list = []
+    for format in format_list:
+        video_list += glob.glob(os.path.join(folderName, format))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(('', port))
     sock.listen(1)
     while True:
         rtspSock = sock.accept()
+        sendVideoList(video_list, rtspSock[0])
         Server(rtspSocket=rtspSock)
 
 

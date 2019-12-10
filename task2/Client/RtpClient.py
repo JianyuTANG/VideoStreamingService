@@ -218,12 +218,16 @@ class RtpClient(Frame):
         # cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
         # if os.path.isfile(cachename):
         #     os.remove(cachename)
-        self.requestSent = RtpClient.REPOSITION
+        self.requestSent = RtpClient.TEARDOWN
+        self.buffer = None
+        self.fullScreenBuffer = None
         return True
 
     def recvRtspReply(self):
         """Receive RTSP reply from the server."""
         while True:
+            if self.teardownAcked == 1:
+                return
             try:
                 reply = self.rtspSocket.recv(1024)
             except:
@@ -493,7 +497,6 @@ class RtpClient(Frame):
         self.x05.grid(row=3, column=0, padx=2, pady=2)
 
 
-root = Tk()
-c = RtpClient(root, '127.0.0.1', 6666, 5555)
-print(666)
-c.mainloop()
+# root = Tk()
+# c = RtpClient(root, '127.0.0.1', 6666, 5555)
+# c.mainloop()
