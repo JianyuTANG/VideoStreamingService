@@ -45,6 +45,10 @@ class RtpClient(Frame):
         self.master = master
         self.master.protocol("WM_DELETE_WINDOW", self.handler)
         self.createWidgets()
+        self.screen_width = master.winfo_screenwidth()
+        print(self.screen_width)
+        self.screen_height = master.winfo_screenheight()
+        print(self.screen_height)
 
         self.rtspSeq = 0
         self.fileName = '1.mp4'
@@ -267,12 +271,16 @@ class RtpClient(Frame):
                         self.fps = fps
                         self.actualfps = fps
                         self.height = height
+                        self.width = width
                         self.frameNum = int(float(lines[7].split()[1]))
                         framenum = self.frameNum
+                        print('height ' + str(self.height))
+                        print('width ' + str(self.width))
                         print('framenum: ' + str(framenum))
                         print('fps: ' + str(fps))
                         print('len: ' + str(length))
                         self.buffer = [None for i in range(framenum + 100)]
+                        self.fullScreenBuffer = [None for i in range(framenum + 100)]
                         self.duration = 1 / fps
                         self.state = RtpClient.READY
                         self.frameSeq = 0
@@ -333,8 +341,12 @@ class RtpClient(Frame):
                         img = np.fromstring(data, np.uint8)
                         img = imdecode(img, IMREAD_COLOR)
                         img = img[:, :, ::-1]
-                        photo = ImageTk.PhotoImage(Image.fromarray(img))
+                        img = Image.fromarray(img)
+                        # if self.isFullScreen:
+                        #     img.resize((self.screen_height, self.screen_width), Image.ANTIALIAS)
+                        photo = ImageTk.PhotoImage(img)
                         self.buffer[currFrameNbr] = photo
+                        threading.Thread(target=self._process_frame, args=(img, currFrameNbr,)).start()
 
             except:
                 print('except')
@@ -346,14 +358,11 @@ class RtpClient(Frame):
                     self.rtpSocket.close()
                     break
 
-    def _process_frame(self, data, currFrameNbr):
-        img = np.fromstring(data, np.uint8)
-        img = imdecode(img, IMREAD_COLOR)
-        # img = cvtColor(img, COLOR_BGR2RGB)
-        img = img[:, :, ::-1]
-        photo = ImageTk.PhotoImage(Image.fromarray(img))
-        # print(currFrameNbr)
-        self.buffer[currFrameNbr] = photo
+    def _process_frame(self, img, currFrameNbr):
+        photo = img.resize((self.screen_width, self.screen_height), Image.ANTIALIAS)
+        photo = ImageTk.PhotoImage(photo)
+        self.fullScreenBuffer[currFrameNbr] = photo
+        # print('add full screen')
 
     def updateFrames(self):
         print('enter updateFrames')
@@ -363,15 +372,17 @@ class RtpClient(Frame):
             if self.playEvent.isSet() or self.teardownAcked == 1:
                 print('break')
                 break
-            photo = self.buffer[self.frameSeq]
+            if self.isFullScreen:
+                # print('full screen')
+                photo = self.fullScreenBuffer[self.frameSeq]
+            else:
+                photo = self.buffer[self.frameSeq]
             if photo is not None:
                 # self.label.configure(image=photo, height=self.height)
                 # self.label.image = photo
                 self.canvas.itemconfig(self.image_on_canvas, image=photo)
-                # self.canvas.create_image(0, 0, anchor=NW, image=photo)
-                # self.master.update_idletasks()
-                # self.master.update()
                 self.buffer[self.frameSeq - 1] = None
+                self.fullScreenBuffer[self.frameSeq - 1] = None
                 self.frameSeq += 1
             else:
                 print('lack ' + str(self.frameSeq))
@@ -437,12 +448,16 @@ class RtpClient(Frame):
         self.master.bind('<Escape>', func=self.processESC)
         self.hideWidgets()
         self.master.attributes("-fullscreen", True)
+        self.canvas.config(width=self.screen_width, height=self.screen_height)
 
     def quit_full_screen(self):
         if not self.isFullScreen:
             return
+        self.master.unbind('<Escape>')
         self.master.attributes("-fullscreen", False)
         self.showWidgets()
+        self.isFullScreen = False
+        self.canvas.config(width=self.width, height=self.height)
 
     def processBlank(self, ke):
         if self.state == RtpClient.INIT:
