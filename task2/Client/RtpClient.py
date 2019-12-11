@@ -7,6 +7,7 @@ import time
 import threading
 import numpy as np
 from cv2 import *
+from SubtitleLoader import SubtitleLoader
 
 
 CACHE_FILE_NAME = "cache-"
@@ -312,9 +313,21 @@ class RtpClient(Frame):
                                            sticky=W + E + N + S, padx=5, pady=5)
                         self.canvas = Canvas(self.master, width=width, height=height)
                         self.canvas.grid(row=0, column=0, columnspan=5, sticky=W + E + N + S, padx=5, pady=5)
-                        img = Image.open('loading.gif')
-                        photo = ImageTk.PhotoImage(img)
-                        self.image_on_canvas = self.canvas.create_image(0, 0, anchor=NW, image=photo)
+                        self.loadingimg = Image.open('res/loading.png')
+                        self.loadingimg = ImageTk.PhotoImage(self.loadingimg)
+                        self.image_on_canvas = self.canvas.create_image(0, 0,
+                                                                        anchor=NW, image=self.loadingimg)
+                        try:
+                            srtname = self.fileName.split('.')[0]
+                            srtname += '.srt'
+                            srtname = os.path.join('srt/', srtname)
+                            self.subtitleLoader = SubtitleLoader(srtName=srtname, length=length)
+                            self.hasSub = True
+                        except:
+                            self.hasSub = False
+                        if self.hasSub:
+                            self.subtitle = Label(self.canvas)
+                            # self.subtitle.place(x=width / 2, y=height - 15, anchor=CENTER)
 
                     elif self.requestSent == RtpClient.PLAY:
                         self.state = RtpClient.PLAYING
@@ -420,7 +433,24 @@ class RtpClient(Frame):
                 print('lack ' + str(self.frameSeq))
                 self.frameSeq += 1
             if self.frameSeq % self.actualfps == 0:
-                self.currentSec.set(self.currentSec.get() + 1)
+                sec = self.currentSec.get() + 1
+                self.currentSec.set(sec)
+                if self.hasSub:
+                    c = self.subtitleLoader.getsub(sec)
+                    print(type(c))
+                    if c is None:
+                        self.subtitle['text'] = ''
+                        self.subtitle.place_forget()
+                    elif isinstance(c, str):
+                        width = int(self.canvas['width'])
+                        height = int(self.canvas['height'])
+                        self.subtitle.place(x=width / 2, y=height - 15, anchor=CENTER)
+                        self.subtitle['text'] = c
+                        print(c)
+                    else:
+                        width = int(self.canvas['width'])
+                        height = int(self.canvas['height'])
+                        self.subtitle.place(x=width / 2, y=height - 15, anchor=CENTER)
             if self.frameSeq == self.frameNum:
                 self.state = RtpClient.READY
                 return

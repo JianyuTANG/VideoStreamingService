@@ -29,6 +29,7 @@ class Server:
         self.session = ''
         self.rtpFlag = threading.Event()
         self.frameSeq = 0
+        self.quality = 100
         threading.Thread(target=self.recvRtspRequest).start()
 
     def recvRtspRequest(self):
@@ -134,12 +135,12 @@ class Server:
     def sendRtpPacket(self):
         print('start transmitting')
         while True:
-            self.rtpFlag.wait(0.035)
+            self.rtpFlag.wait(0.03)
             if self.rtpFlag.isSet():
                 break
 
             # read images
-            data = self.videoLoader.getFrame(10)
+            data = self.videoLoader.getFrame(self.quality)
             if data is not None:
                 frameNumber = self.videoLoader.getSeq()
                 pack = self.makePacket(data, frameNumber)
@@ -149,7 +150,8 @@ class Server:
                     # print('pack ' + str(self.frameSeq))
                     self.frameSeq += 1
                 except:
-                    print('error')
+                    self.quality /= 2
+                    self.quality = int(self.quality)
             else:
                 break
 
