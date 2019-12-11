@@ -182,6 +182,7 @@ def sendVideoList(video_list, sock):
     msg = 'total: ' + str(length)
     for videoName in video_list:
         msg += '\nname: ' + videoName
+    print(msg)
     sock.sendall(msg.encode())
 
 
@@ -189,6 +190,9 @@ def runService(port):
     video_list = []
     for format in format_list:
         video_list += glob.glob(os.path.join(folderName, format))
+    l = len(video_list)
+    for i in range(l):
+        video_list[i] = os.path.basename(video_list[i])
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(('', port))
     sock.listen(1)

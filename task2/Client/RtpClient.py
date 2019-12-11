@@ -7,7 +7,6 @@ import time
 import threading
 import numpy as np
 from cv2 import *
-from io import BytesIO
 
 
 CACHE_FILE_NAME = "cache-"
@@ -26,21 +25,22 @@ class RtpClient(Frame):
     DESCRIPTION = 4
     REPOSITION = 5
 
-    def __init__(self, master, serverIP, serverPort, rtpPort, **kw):
+    def __init__(self, master, serverIP, serverPort, rtpPort, videoname, rtspsock, **kw):
         super().__init__(master, **kw)
         self.state = RtpClient.INIT
         self.serverIP = serverIP
         self.serverPort = serverPort
         self.serverAddr = (serverIP, serverPort)
         self.rtpPort = rtpPort
-        self.rtspSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.rtspSocket = rtspsock
         self.rtpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        try:
-            self.rtspSocket.connect(self.serverAddr)
-            threading.Thread(target=self.recvRtspReply).start()
-        except:
-            raise IOError
+        # try:
+        #     self.rtspSocket.connect(self.serverAddr)
+        #     threading.Thread(target=self.recvRtspReply).start()
+        # except:
+        #     raise IOError
+
 
         self.master = master
         self.master.protocol("WM_DELETE_WINDOW", self.handler)
@@ -51,40 +51,52 @@ class RtpClient(Frame):
         print(self.screen_height)
 
         self.rtspSeq = 0
-        self.fileName = '1.mp4'
+        self.fileName = videoname
         self.sessionId = 0
         self.teardownAcked = 0
         self.currentSec = IntVar()
         self.currentSec.set(0)
         self.isFullScreen = False
 
+        threading.Thread(target=self.recvRtspReply).start()
+        self.setupMovie()
+
         self.master.bind('<space>', func=self.processBlank)
 
     def createWidgets(self):
         """Build GUI."""
         # Create Setup button
-        self.setup = Button(self.master, width=20, padx=3, pady=3)
-        self.setup["text"] = "Setup"
-        self.setup["command"] = self.setupMovie
-        self.setup.grid(row=2, column=0, padx=2, pady=2)
+        # self.setup = Button(self.master, width=20, padx=3, pady=3)
+        # self.setup["text"] = "Setup"
+        # self.setup["command"] = self.setupMovie
+        # self.setup.grid(row=2, column=0, padx=2, pady=2)
 
         # Create Play button
-        self.start = Button(self.master, width=20, padx=3, pady=3)
-        self.start["text"] = "Play"
+        self.playimg = Image.open('res/play.png')
+        self.playimg = self.playimg.resize((20, 20), Image.ANTIALIAS)
+        self.playimg = ImageTk.PhotoImage(self.playimg)
+        self.pauseimg = Image.open('res/pause.png')
+        self.pauseimg = self.pauseimg.resize((20, 20), Image.ANTIALIAS)
+        self.pauseimg = ImageTk.PhotoImage(self.pauseimg)
+        self.start = Button(self.master, image=self.playimg)
+        # self.start["text"] = "Play"
+        # self.start.configure(img=self.playimg)
         self.start["command"] = self.playMovie
-        self.start.grid(row=2, column=1, padx=2, pady=2)
+        self.start.grid(row=2, column=0, padx=2, pady=2)
 
         # Create Pause button
-        self.pause = Button(self.master, width=20, padx=3, pady=3)
-        self.pause["text"] = "Pause"
+        self.fullimg = Image.open('res/full.png')
+        self.fullimg = self.fullimg.resize((20, 20), Image.ANTIALIAS)
+        self.fullimg = ImageTk.PhotoImage(self.fullimg)
+        self.pause = Button(self.master, image=self.fullimg)
         self.pause["command"] = self.enter_full_screen
-        self.pause.grid(row=2, column=2, padx=2, pady=2)
+        self.pause.grid(row=2, column=1, padx=2, pady=2)
 
         # Create Teardown button
-        self.teardown = Button(self.master, width=20, padx=3, pady=3)
-        self.teardown["text"] = "Teardown"
-        self.teardown["command"] = self.exitClient
-        self.teardown.grid(row=2, column=3, padx=2, pady=2)
+        # self.teardown = Button(self.master, width=20, padx=3, pady=3)
+        # self.teardown["text"] = "Teardown"
+        # self.teardown["command"] = self.exitClient
+        # self.teardown.grid(row=2, column=3, padx=2, pady=2)
 
         # Create a label to display the movie
         # self.label = Label(self.master, height=19)
@@ -94,20 +106,20 @@ class RtpClient(Frame):
         # self.progress = Scale(self.master, from_=0, to=100, orient=HORIZONTAL)
         # self.progress.grid(row=1, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
 
-        self.x1 = Button(self.master, width=20, padx=3, pady=3)
+        self.x1 = Button(self.master, width=7, padx=3, pady=3)
         self.x1["text"] = "x1"
         self.x1["command"] = self.setDuration1
-        self.x1.grid(row=3, column=1, padx=2, pady=2)
+        self.x1.grid(row=2, column=2, padx=2, pady=2)
 
-        self.x15 = Button(self.master, width=20, padx=3, pady=3)
+        self.x15 = Button(self.master, width=7, padx=3, pady=3)
         self.x15["text"] = "x1.5"
         self.x15["command"] = self.setDuration15
-        self.x15.grid(row=3, column=2, padx=2, pady=2)
+        self.x15.grid(row=2, column=3, padx=2, pady=2)
 
-        self.x05 = Button(self.master, width=20, padx=3, pady=3)
+        self.x05 = Button(self.master, width=7, padx=3, pady=3)
         self.x05["text"] = "x0.5"
         self.x05["command"] = self.setDuration05
-        self.x05.grid(row=3, column=0, padx=2, pady=2)
+        self.x05.grid(row=2, column=4, padx=2, pady=2)
 
     def setupMovie(self):
         self.state = RtpClient.INIT
@@ -205,6 +217,13 @@ class RtpClient(Frame):
 
     def exitClient(self):
         """Teardown button handler."""
+        if self.state == RtpClient.INIT:
+            self.teardownAcked = 1
+            self.master.destroy()  # Close the gui window
+            return
+        if self.state == RtpClient.PLAYING:
+            self.playEvent.set()
+            time.sleep(0.2)
         self.rtspSeq += 1
         request = 'TEARDOWN ' + self.fileName + ' RTSP/1.0\nCSeq: ' + str(self.rtspSeq) + '\nSession: ' + str(
             self.sessionId)
@@ -214,13 +233,11 @@ class RtpClient(Frame):
         except:
             tkMessageBox.showwarning('Sending Failed', 'Fail to send rtsp message')
             return False
-        self.master.destroy()  # Close the gui window
+
         # cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
         # if os.path.isfile(cachename):
         #     os.remove(cachename)
         self.requestSent = RtpClient.TEARDOWN
-        self.buffer = None
-        self.fullScreenBuffer = None
         return True
 
     def recvRtspReply(self):
@@ -291,10 +308,10 @@ class RtpClient(Frame):
                         self.progress = Scale(self.master, from_=0, to=length, orient=HORIZONTAL,
                                               variable=self.currentSec,
                                               command=self.process_reposition)
-                        self.progress.grid(row=1, column=0, columnspan=4,
+                        self.progress.grid(row=1, column=0, columnspan=5,
                                            sticky=W + E + N + S, padx=5, pady=5)
                         self.canvas = Canvas(self.master, width=width, height=height)
-                        self.canvas.grid(row=0, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
+                        self.canvas.grid(row=0, column=0, columnspan=5, sticky=W + E + N + S, padx=5, pady=5)
                         img = Image.open('loading.gif')
                         photo = ImageTk.PhotoImage(img)
                         self.image_on_canvas = self.canvas.create_image(0, 0, anchor=NW, image=photo)
@@ -303,26 +320,34 @@ class RtpClient(Frame):
                         self.state = RtpClient.PLAYING
                         self.playEvent = threading.Event()
                         threading.Thread(target=self.updateFrames).start()
+                        self.start['image'] = self.pauseimg
+                        self.start['command'] = self.pauseMovie
 
                     elif self.requestSent == RtpClient.PAUSE:
                         self.state = RtpClient.READY
                         # The play thread exits. A new thread is created on resume.
                         self.playEvent.set()
+                        self.start['image'] = self.playimg
+                        self.start['command'] = self.playMovie
 
                     elif self.requestSent == RtpClient.REPOSITION:
                         self.frameSeq = int(lines[3].split()[1])
                         print('receive reposition')
                         # print('after repositioning: ' + str(self.frameSeq))
                         if self.state == RtpClient.PLAYING:
-                            print('7777777')
                             time.sleep(0.2)
                             self.playEvent = threading.Event()
                             threading.Thread(target=self.updateFrames).start()
 
                     elif self.requestSent == RtpClient.TEARDOWN:
+                        self.master.destroy()  # Close the gui window
                         self.state = RtpClient.INIT
                         # Flag the teardownAcked to close the socket.
                         self.teardownAcked = 1
+                        self.buffer = None
+                        self.fullScreenBuffer = None
+                        self.rtpSocket.shutdown(socket.SHUT_RDWR)
+                        self.rtpSocket.close()
 
     def listenRtp(self):
         """Listen for RTP packets."""
@@ -351,22 +376,25 @@ class RtpClient(Frame):
                         photo = ImageTk.PhotoImage(img)
                         self.buffer[currFrameNbr] = photo
                         threading.Thread(target=self._process_frame, args=(img, currFrameNbr,)).start()
+                    if currFrameNbr == self.frameNum:
+                        return
 
             except:
                 print('except')
-                if self.playEvent.isSet():
-                    break
-
-                if self.teardownAcked == 1:
-                    self.rtpSocket.shutdown(socket.SHUT_RDWR)
-                    self.rtpSocket.close()
-                    break
+                break
+                # if self.teardownAcked == 1:
+                #     break
+                #
+                # if self.playEvent.isSet():
+                #     break
 
     def _process_frame(self, img, currFrameNbr):
-        photo = img.resize((self.screen_width, self.screen_height), Image.ANTIALIAS)
-        photo = ImageTk.PhotoImage(photo)
-        self.fullScreenBuffer[currFrameNbr] = photo
-        # print('add full screen')
+        try:
+            photo = img.resize((self.screen_width, self.screen_height), Image.ANTIALIAS)
+            photo = ImageTk.PhotoImage(photo)
+            self.fullScreenBuffer[currFrameNbr] = photo
+        except:
+            return
 
     def updateFrames(self):
         print('enter updateFrames')
@@ -401,11 +429,13 @@ class RtpClient(Frame):
 
     def handler(self):
         """Handler on explicitly closing the GUI window."""
+        state = self.state
         self.pauseMovie()
         if tkMessageBox.askokcancel("Quit?", "Are you sure you want to quit?"):
             self.exitClient()
         else:  # When the user presses cancel, resume playing.
-            self.playMovie()
+            if state == RtpClient.PLAYING:
+                self.playMovie()
 
     def process_reposition(self, sec):
         # print(self.currentSec.get())
@@ -454,6 +484,14 @@ class RtpClient(Frame):
         self.master.attributes("-fullscreen", True)
         self.canvas.config(width=self.screen_width, height=self.screen_height)
 
+        try:
+            if self.state == RtpClient.READY:
+                if self.fullScreenBuffer[self.frameSeq] is not None:
+                    photo = self.fullScreenBuffer[self.frameSeq]
+                    self.canvas.itemconfig(self.image_on_canvas, image=photo)
+        except:
+            return
+
     def quit_full_screen(self):
         if not self.isFullScreen:
             return
@@ -462,6 +500,14 @@ class RtpClient(Frame):
         self.showWidgets()
         self.isFullScreen = False
         self.canvas.config(width=self.width, height=self.height)
+
+        try:
+            if self.state == RtpClient.READY:
+                if self.buffer[self.frameSeq] is not None:
+                    photo = self.buffer[self.frameSeq]
+                    self.canvas.itemconfig(self.image_on_canvas, image=photo)
+        except:
+            return
 
     def processBlank(self, ke):
         if self.state == RtpClient.INIT:
@@ -477,24 +523,20 @@ class RtpClient(Frame):
         self.quit_full_screen()
 
     def hideWidgets(self):
-        self.setup.grid_forget()
         self.start.grid_forget()
         self.pause.grid_forget()
-        self.teardown.grid_forget()
         self.x1.grid_forget()
         self.x05.grid_forget()
         self.x15.grid_forget()
         self.progress.grid_forget()
 
     def showWidgets(self):
-        self.setup.grid(row=2, column=0, padx=2, pady=2)
-        self.start.grid(row=2, column=1, padx=2, pady=2)
-        self.pause.grid(row=2, column=2, padx=2, pady=2)
-        self.teardown.grid(row=2, column=3, padx=2, pady=2)
-        self.progress.grid(row=1, column=0, columnspan=4, sticky=W + E + N + S, padx=5, pady=5)
-        self.x1.grid(row=3, column=1, padx=2, pady=2)
-        self.x15.grid(row=3, column=2, padx=2, pady=2)
-        self.x05.grid(row=3, column=0, padx=2, pady=2)
+        self.start.grid(row=2, column=0, padx=2, pady=2)
+        self.pause.grid(row=2, column=1, padx=2, pady=2)
+        self.progress.grid(row=1, column=0, columnspan=5, sticky=W + E + N + S, padx=5, pady=5)
+        self.x1.grid(row=2, column=2, padx=2, pady=2)
+        self.x15.grid(row=2, column=3, padx=2, pady=2)
+        self.x05.grid(row=2, column=4, padx=2, pady=2)
 
 
 # root = Tk()
