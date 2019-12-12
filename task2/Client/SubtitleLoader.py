@@ -9,11 +9,9 @@ class SubtitleLoader:
             self.file = open(srtName, 'r')
         except:
             raise IOError
-
         self.length = length
         self.content = [None for i in range(length)]
         self.load_subtitle()
-        print(self.content)
 
     def load_subtitle(self):
         self.seq = 1

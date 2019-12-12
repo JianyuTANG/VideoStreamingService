@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import messagebox as tkMessageBox
 from RtpClient import RtpClient
 import socket
+import sys
 
 
 class Client:
@@ -106,7 +107,14 @@ class Client:
         self.master.destroy()
 
 
-root = Tk()
-c = Client(root, '127.0.0.1', 6666, 5555)
-root.mainloop()
-print('666')
+def main():
+    if len(sys.argv) != 4:
+        sys.stderr.write("Error: number of arguments is wrong!")
+        return
+    root = Tk()
+    c = Client(root, sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

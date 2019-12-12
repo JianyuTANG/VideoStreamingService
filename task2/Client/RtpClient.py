@@ -321,9 +321,11 @@ class RtpClient(Frame):
                             srtname = self.fileName.split('.')[0]
                             srtname += '.srt'
                             srtname = os.path.join('srt/', srtname)
+                            print(srtname)
                             self.subtitleLoader = SubtitleLoader(srtName=srtname, length=length)
                             self.hasSub = True
                         except:
+                            print('false')
                             self.hasSub = False
                         if self.hasSub:
                             self.subtitle = Label(self.canvas)
@@ -430,14 +432,13 @@ class RtpClient(Frame):
                 self.fullScreenBuffer[self.frameSeq - 1] = None
                 self.frameSeq += 1
             else:
-                print('lack ' + str(self.frameSeq))
+                # print('lack ' + str(self.frameSeq))
                 self.frameSeq += 1
-            if self.frameSeq % self.actualfps == 0:
+            if self.frameSeq % self.fps == 0:
                 sec = self.currentSec.get() + 1
                 self.currentSec.set(sec)
                 if self.hasSub:
                     c = self.subtitleLoader.getsub(sec)
-                    print(type(c))
                     if c is None:
                         self.subtitle['text'] = ''
                         self.subtitle.place_forget()
@@ -446,7 +447,6 @@ class RtpClient(Frame):
                         height = int(self.canvas['height'])
                         self.subtitle.place(x=width / 2, y=height - 15, anchor=CENTER)
                         self.subtitle['text'] = c
-                        print(c)
                     else:
                         width = int(self.canvas['width'])
                         height = int(self.canvas['height'])

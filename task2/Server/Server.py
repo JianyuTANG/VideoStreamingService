@@ -4,6 +4,7 @@ from RtpPacket import RtpPacket
 from VideoLoader import VideoLoader
 import random
 import os
+import sys
 import glob
 
 
@@ -176,7 +177,7 @@ class Server:
 
 
 folderName = 'videos/'
-format_list = ['*.mp4', '*.avi']
+format_list = ['*.mp4', '*.avi', '*.mkv']
 
 
 def sendVideoList(video_list, sock):
@@ -204,4 +205,12 @@ def runService(port):
         Server(rtspSocket=rtspSock)
 
 
-runService(6666)
+def main():
+    if len(sys.argv) != 2:
+        sys.stderr.write("Error: number of arguments is wrong!")
+        return
+    runService(int(sys.argv[1]))
+
+
+if __name__ == "__main__":
+    main()
